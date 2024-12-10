@@ -16,6 +16,7 @@ export const TEMPLATE_VARIABLES = {
   citekey: 'Unique citekey',
   abstract: '',
   authorString: 'Comma-separated list of author names',
+  shortAuthorString: 'Comma-separated list of author first 2 and last 2 names',
   containerTitle:
     'Title of the container holding the reference (e.g. book title for a book chapter, or the journal title for a journal article)',
   DOI: '',
@@ -51,6 +52,7 @@ export class Library {
 
       abstract: entry.abstract,
       authorString: entry.authorString,
+      shortAuthorString: entry.shortAuthorString,
       containerTitle: entry.containerTitle,
       DOI: entry.DOI,
       eprint: entry.eprint,
@@ -139,6 +141,11 @@ export abstract class Entry {
    * A comma-separated list of authors, each of the format `<firstname> <lastname>`.
    */
   public abstract authorString?: string;
+
+  /**
+   * A comma-separated list of first and last two authors, each of the format `<firstname> <lastname>`.
+   */
+  public abstract shortAuthorString?: string;
 
   /**
    * The name of the container for this reference -- in the case of a book
@@ -269,6 +276,24 @@ export class EntryCSLAdapter extends Entry {
     return this.data.author
       ? this.data.author.map((a) => `${a.given} ${a.family}`).join(', ')
       : null;
+  }
+  
+  // not yet sure if this works
+  get shortAuthorString(): string | null {
+    if (!this.data.author) {
+      return null;
+    }
+  
+    const authors = this.data.author.map((a) => `${a.given} ${a.family}`);
+    const authorCount = authors.length;
+  
+    if (authorCount <= 4) {
+      return authors.join(', ');
+    }
+  
+    const firstTwo = authors.slice(0, 2).join(', ');
+    const lastTwo = authors.slice(-2).join(', ');
+    return `${firstTwo}, ${lastTwo}`;
   }
 
   get containerTitle() {
@@ -438,6 +463,45 @@ export class EntryBibLaTeXAdapter extends Entry {
       return this.data.fields.author?.join(', ');
     }
   }
+
+  // short author string
+  get shortAuthorString() {
+    if (this.data.creators.author) {
+      const names = this.data.creators.author.map((name) => {
+        if (name.literal) return name.literal;
+        const parts = [name.firstName, name.prefix, name.lastName, name.suffix];
+        // Drop any null parts and join
+        return parts.filter((x) => x).join(' ');
+      });
+  
+      const authorCount = names.length;
+  
+      if (authorCount <= 4) {
+        return names.join(', ');
+      }
+  
+      const firstTwo = names.slice(0, 2).join(', ');
+      const lastTwo = names.slice(-2).join(', ');
+      return `${firstTwo}, ..., ${lastTwo}`;
+    } else {
+      const fieldsAuthor = this.data.fields.author?.join(', ');
+      if (fieldsAuthor) {
+        const authorArray = this.data.fields.author;
+        const authorCount = authorArray.length;
+  
+        if (authorCount <= 4) {
+          return fieldsAuthor;
+        }
+  
+        const firstTwo = authorArray.slice(0, 2).join(', ');
+        const lastTwo = authorArray.slice(-2).join(', ');
+        return `${firstTwo}, ..., ${lastTwo}`;
+      }
+  
+      return null;
+    }
+  }
+  
 
   get containerTitle() {
     if (this._containerTitle) {
