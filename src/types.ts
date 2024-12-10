@@ -9,6 +9,7 @@ export interface IIndexable {
   [key: string]: any;
 }
 
+// allowed databases
 const databaseTypes = ['csl-json', 'biblatex'] as const;
 export type DatabaseType = typeof databaseTypes[number];
 
@@ -28,6 +29,7 @@ export const TEMPLATE_VARIABLES = {
   publisher: '',
   publisherPlace: 'Location of publisher',
   title: '',
+  titleClean: '',
   titleShort: '',
   URL: '',
   year: 'Publication year',
@@ -63,6 +65,7 @@ export class Library {
       publisher: entry.publisher,
       publisherPlace: entry.publisherPlace,
       title: entry.title,
+      titleClean: entry.titleClean,
       titleShort: entry.titleShort,
       URL: entry.URL,
       year: entry.year?.toString(),
@@ -170,6 +173,7 @@ export abstract class Entry {
    */
   public abstract page?: string;
   public abstract title?: string;
+  public abstract titleClean?: string; // adding clean title as part of the entry
   public abstract titleShort?: string;
   public abstract URL?: string;
 
@@ -201,9 +205,14 @@ export abstract class Entry {
 
   /**
    * A URI which will open the relevant entry in the Zotero client.
-   */
   public get zoteroSelectURI(): string {
     return `zotero://select/items/@${this.id}`;
+  }
+  */
+  // NOTE: I I replaced here "/" with "%2F"
+  public get zoteroSelectURI(): string {
+    const sanitizedId = this.id.replace(/\//g, '%2F');
+    return `zotero://select/items/@${sanitizedId}`;
   }
 
   toJSON(): Record<string, unknown> {
@@ -245,7 +254,8 @@ export interface EntryDataCSL {
   publisher?: string;
   'publisher-place'?: string;
   title?: string;
-  'title-short'?: string;
+  titleClean?: string;
+ 'title-short'?: string;
   URL?: string;
 }
 
@@ -336,6 +346,12 @@ export class EntryCSLAdapter extends Entry {
 
   get title() {
     return this.data.title;
+  }
+
+  get titleClean() {
+    return this.data.title 
+      ? this.data.title.replace(/[:\/\\]/g, '')
+      : null;
   }
 
   get titleShort() {
@@ -482,7 +498,7 @@ export class EntryBibLaTeXAdapter extends Entry {
   
       const firstTwo = names.slice(0, 2).join(', ');
       const lastTwo = names.slice(-2).join(', ');
-      return `${firstTwo}, ..., ${lastTwo}`;
+      return `${firstTwo}, ${lastTwo}`;
     } else {
       const fieldsAuthor = this.data.fields.author?.join(', ');
       if (fieldsAuthor) {
@@ -495,7 +511,7 @@ export class EntryBibLaTeXAdapter extends Entry {
   
         const firstTwo = authorArray.slice(0, 2).join(', ');
         const lastTwo = authorArray.slice(-2).join(', ');
-        return `${firstTwo}, ..., ${lastTwo}`;
+        return `${firstTwo}, ${lastTwo}`;
       }
   
       return null;
@@ -526,5 +542,15 @@ export class EntryBibLaTeXAdapter extends Entry {
       given: a.firstName,
       family: a.lastName,
     }));
+  }
+
+  get titleClean() {
+    if (this.data.fields['title']) {
+      // Extract the title and replace unwanted characters with an empty string
+      return this.data.fields['title']
+        .map((title) => title.replace(/[:/\\"]/g, ''))
+        .join(' '); // In case there are multiple titles, join them with a space
+    }
+    return null; // Return null if the title field doesn't exist
   }
 }
